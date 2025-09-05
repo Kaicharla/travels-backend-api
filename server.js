@@ -12,6 +12,48 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+// Add this after middleware and before routes
+app.get('/', (req, res) => {
+    res.send(`
+      <html>
+        <head>
+          <title>Happy Travelling</title>
+          <style>
+            body {
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              height: 100vh;
+              margin: 0;
+              font-family: Arial, sans-serif;
+              background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+              color: white;
+              text-align: center;
+            }
+            h1 {
+              font-size: 3rem;
+              margin-bottom: 0.5rem;
+            }
+            p {
+              font-size: 1.2rem;
+              margin-top: 0;
+            }
+            .emoji {
+              font-size: 4rem;
+            }
+          </style>
+        </head>
+        <body>
+          <div>
+            <div class="emoji">🚌✨🌍</div>
+            <h1>Happy Travelling</h1>
+            <p>🚀 Your journey starts here. Safe rides ahead! 🌟</p>
+          </div>
+        </body>
+      </html>
+    `);
+  });
+  
 
 // Routes
 const authRoutes = require('./routes/auth');
