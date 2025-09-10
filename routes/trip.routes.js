@@ -54,18 +54,14 @@ router.post('/', authMiddleware, async (req, res) => {
 // LIST trips
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const page  = Math.max(parseInt(req.query.page) || 1, 1);
-    const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 100);
     const sort  = req.query.sort || '-createdAt';
-
     const match = buildMatch(req);
 
-    const [rows, total] = await Promise.all([
-      Trip.find(match).sort(sort).skip((page-1)*limit).limit(limit),
-      Trip.countDocuments(match),
-    ]);
+    // 🚀 Always fetch all trips (no pagination needed)
+    const rows = await Trip.find(match).sort(sort);
+    const total = rows.length;
 
-    res.json({ total, page, limit, rows });
+    res.json({ total, page: 1, limit: total, rows });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
