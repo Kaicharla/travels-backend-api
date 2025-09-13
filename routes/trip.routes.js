@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const Trip = require('../models/trips');
 const Driver = require('../models/Driver');
 const Vehicle = require('../models/Vehicle');
-const { authMiddleware } = require('../middleware/auth');
+const { authMiddleware, adminOnly } = require('../middleware/auth');
 const { buildMatch, attachRefs } = require('../utils/tripHelpers');
 
 
@@ -25,22 +25,16 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 
     if (req.user.role === 'driver') {
-      // ✅ Force driverId to logged-in user
       data.driverId = req.user.id;
-
-      // 🚫 Do NOT attach driver snapshot (so driverName, driverNumber not overwritten)
-      // ✅ But still allow vehicle snapshot if driver selected a vehicle
+    
       if (data.vehicleId) {
         data = await attachRefs({
           ...data,
-          driverId: data.driverId // keep driverId intact
+          driverId: data.driverId
         });
-
-        // Ensure driverName / driverNumber are not added for drivers
-        delete data.driverName;
-        delete data.driverNumber;
       }
     }
+    
 
     const trip = new Trip(data);
     await trip.save();
@@ -51,13 +45,17 @@ router.post('/', authMiddleware, async (req, res) => {
 });
 
 
-// LIST trips
+// LIST trips for driver only
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const sort  = req.query.sort || '-createdAt';
-    const match = buildMatch(req);
+    const sort = req.query.sort || '-createdAt';
+    let match = { isDriverDeleted: { $ne: true } }; // exclude soft-deleted trips
 
-    // 🚀 Always fetch all trips (no pagination needed)
+    // If user is driver, show only their trips
+    if (req.user.role === 'driver') {
+      match.driverId = new mongoose.Types.ObjectId(req.user.id);
+    }
+
     const rows = await Trip.find(match).sort(sort);
     const total = rows.length;
 
@@ -221,6 +219,52 @@ router.post('/:id/restore', authMiddleware, async (req, res) => {
     await trip.save();
     res.json({ message: 'Trip restored', trip });
   } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+router.get('/:id/whatsapp', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const trip = await Trip.findById(req.params.id);
+    if (!trip) return res.status(404).json({ message: 'Trip not found' });
+
+    const { sendTo } = req.query; // "customer" or "driver"
+
+    let phone = '';
+    if (sendTo === 'customer') {
+      if (!trip.customerNumber) return res.status(400).json({ message: 'Customer number not available' });
+      phone = trip.customerNumber.replace(/\D/g, ''); // clean digits
+    } else if (sendTo === 'driver') {
+      if (!trip.driverNumber) return res.status(400).json({ message: 'Driver number not available' });
+      phone = trip.driverNumber.replace(/\D/g, '');
+    } else {
+      return res.status(400).json({ message: 'sendTo must be "customer" or "driver"' });
+    }
+
+    const message = `
+Trip details
+Pick-up Date: ${trip.startDate || '-'}
+From: ${trip.fromLocation || '-'}
+To: ${trip.endLocation || '-'}
+Cost: ₹${trip.tripAmount || '-'}
+Passenger name: ${trip.customerName || '-'}
+Passenger number: ${trip.customerNumber || '-'}
+Driver name: ${trip.driverName || '-'}
+Phone number: ${trip.driverNumber || '-'}
+Vehicle: ${trip.vehicleType || '-'}
+Seating capacity: -
+Mode of Payment: ${trip.paymentMode || '-'}
+Booking Number: ${trip.bookingId || '-'}
+    `;
+
+    const encodedMessage = encodeURIComponent(message);
+    const waUrl = `https://wa.me/${phone}?text=${encodedMessage}`;
+
+    // ✅ Instead of redirecting, send JSON
+    res.json({ whatsappUrl: waUrl });
+
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
