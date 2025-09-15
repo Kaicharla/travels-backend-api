@@ -59,18 +59,19 @@ app.get('/', (req, res) => {
 const authRoutes = require('./routes/auth');
 const driverRoutes = require('./routes/drivers');
 const vehicleRoutes = require('./routes/vehicles');
-// const tripRoutes = require('./routes/tripRoutes');
-// const tripRoutes = require('./routes/trip');
 const tripRoutes = require('./routes/trip.routes.js');
-// const tripReports = require('./routes/trip.reports');
+const maintenanceRoutes = require('./routes/maintenance.js');
+const adsRoutes = require('./routes/ads');
+
 
 
 app.use('/api/auth', authRoutes);
 app.use('/api/drivers', driverRoutes);
 app.use('/api/vehicles', vehicleRoutes);
-// app.use('/api/trips', tripRoutes);
 app.use('/api/trips', tripRoutes);
-// app.use('/api/trips/reports', tripReports);
+app.use('/api/maintenance', maintenanceRoutes);
+app.use('/api/ads', adsRoutes);
+
 
 
 const PORT = process.env.PORT || 5047;
