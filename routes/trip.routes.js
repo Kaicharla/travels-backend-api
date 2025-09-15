@@ -69,16 +69,26 @@ router.get('/', authMiddleware, async (req, res) => {
 // GET /trips/stats
 router.get('/stats', authMiddleware, async (req, res) => {
   try {
-    // Match trips depending on user role
-    const match = { isDriverDeleted: { $ne: true } }; // exclude soft deleted
+    const match = { isDriverDeleted: { $ne: true } };
 
     if (req.user.role === 'driver') {
       match.driverId = new mongoose.Types.ObjectId(req.user.id);
     }
 
+    // Fetch trips
     const trips = await Trip.find(match);
 
-    // Aggregate totals manually
+    // Fetch maintenance linked to driver (if role=driver)
+    let maintenanceMatch = {};
+    if (req.user.role === 'driver') {
+      maintenanceMatch.driver = new mongoose.Types.ObjectId(req.user.id);
+    }
+    const maintenances = await mongoose.model("Maintenance").find(maintenanceMatch);
+
+    // Fetch ads (right now, assuming ads are company-wide, not per driver)
+    const ads = await mongoose.model("Ad").find({});
+
+    // Aggregate totals
     let totalTrips = trips.length;
     let totalTripAmount = 0;
     let totalExpenses = 0;
@@ -87,7 +97,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
     trips.forEach(trip => {
       const tripAmt = Number(trip.tripAmount || 0);
 
-      // calculate fuel
+      // Fuel
       let fuel = 0;
       if (trip.fuelAmount) {
         if (!isNaN(Number(trip.fuelAmount))) {
@@ -106,10 +116,23 @@ router.get('/stats', authMiddleware, async (req, res) => {
       totalProfit += profit;
     });
 
+    // Add maintenance expenses
+    const totalMaintenance = maintenances.reduce((sum, m) => sum + Number(m.maintenanceCost || 0), 0);
+    totalExpenses += totalMaintenance;
+
+    // Add ad expenses
+    const totalAds = ads.reduce((sum, ad) => sum + Number(ad.amount || 0), 0);
+    totalExpenses += totalAds;
+
+    // Recalculate profit
+    totalProfit = totalTripAmount - totalExpenses;
+
     res.json({
       totalTrips,
       totalTripAmount,
       totalExpenses,
+      totalMaintenance,
+      totalAds,
       totalProfit
     });
 
