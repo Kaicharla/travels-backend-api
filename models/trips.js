@@ -33,10 +33,14 @@ const tripSchema = new mongoose.Schema({
   customerNumber: String,
 
   // Trip timing/route
-  startDate: { type: String },
+  startDate: { type: Date },
   fromLocation: String,
-  endDate: { type: String },
+  endDate: { type: Date },
   endLocation: String,
+
+    // New odometer readings
+    startingReading: { type: Number, default: 0 },
+    endingReading: { type: Number, default: 0 },
 
   // Money
   tripAmount: { type: Number, default: 0 },
